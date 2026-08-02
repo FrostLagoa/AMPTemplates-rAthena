@@ -358,7 +358,10 @@ try {
     }
 }
 catch {
-    [Console]::WriteLine("[supervisor] FATAL {0}", $_.Exception.Message)
+    [Console]::WriteLine("[supervisor] FATAL type={0} message={1}", $_.Exception.GetType().FullName, $_.Exception.Message)
+    if (-not [string]::IsNullOrWhiteSpace($_.ScriptStackTrace)) {
+        [Console]::WriteLine("[supervisor] FATAL_STACK {0}", ($_.ScriptStackTrace -replace "[\r\n]+", " | "))
+    }
     $script:exitCode = 1
 }
 finally {
