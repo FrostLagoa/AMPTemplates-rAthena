@@ -31,7 +31,11 @@ opening separate terminal windows.
 
 `ragnarok-banner.jpg` was supplied by the server operator for this instance's
 visual presentation. It is not part of rAthena and no rights to the underlying
-Ragnarok Online artwork or marks are granted by this template package.
+Ragnarok Online artwork or marks are granted by this template package. The
+operator-provided 588 x 219 source is center-cropped by 60 pixels on each side
+to 468 x 219. That preserves the full height and closely matches the 460 x 215
+Steam header proportion used by AMP's `steam:` display-image source, keeping
+the instance card aligned with standard game banners.
 
 The runtime expects:
 
