@@ -26,6 +26,8 @@ The runtime expects:
 - `login-server.exe`, `char-server.exe`, `map-server.exe` and
   `web-server.exe` under the configured server root;
 - MySQL-backed rAthena configuration prepared separately;
+- a dedicated least-privilege MySQL account compatible with the native
+  rAthena client, with its credentials supplied from the Iris Vault;
 - TCP ports 6900, 6121, 5121 and 8888 available on the host;
 - read/execute access to the checkout and write access to its log directory
   for the AMP instance operating-system identity.

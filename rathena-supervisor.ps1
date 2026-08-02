@@ -282,7 +282,7 @@ try {
     }
     Start-RathenaService -Name "map"
 
-    $readyDeadline = [DateTime]::UtcNow.AddSeconds(120)
+    $readyDeadline = [DateTime]::UtcNow.AddSeconds(600)
     do {
         $allReady = $true
         foreach ($entry in $services.GetEnumerator()) {
@@ -301,7 +301,7 @@ try {
         }
     } while (-not $allReady -and [DateTime]::UtcNow -lt $readyDeadline)
     if (-not $allReady) {
-        throw "Not all enabled rAthena services became ready within 120 seconds"
+        throw "Not all enabled rAthena services became ready within 600 seconds"
     }
     $webStatus = if ($webEnabled) { [string]$WebPort } else { "disabled" }
     [Console]::WriteLine("[supervisor] READY login={0} char={1} map={2} web={3}", $LoginPort, $CharPort, $MapPort, $webStatus)
