@@ -16,6 +16,7 @@ param(
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 $script:stopping = $false
+$script:exitCode = 0
 $script:runtime = @{}
 $script:restartCounts = @{}
 
@@ -73,9 +74,17 @@ function Test-TcpPort {
 }
 
 function Wait-TcpPort {
-    param([int]$Port, [int]$TimeoutSeconds = 45)
+    param([int]$Port, [int]$TimeoutSeconds = 45, [string]$ServiceName = "")
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
     while ([DateTime]::UtcNow -lt $deadline) {
+        if (-not [string]::IsNullOrWhiteSpace($ServiceName)) {
+            Drain-RathenaOutput -Name $ServiceName
+            $state = $script:runtime[$ServiceName]
+            if ($null -ne $state -and $state.Process.HasExited) {
+                Drain-RathenaOutput -Name $ServiceName
+                return $false
+            }
+        }
         if (Test-TcpPort -Port $Port) {
             return $true
         }
@@ -107,36 +116,47 @@ function Start-RathenaService {
 
     $process = [Diagnostics.Process]::new()
     $process.StartInfo = $startInfo
-    $serviceLabel = $Name
-    $stdoutScript = {
-        param($sender, $eventArgs)
-        if ($null -ne $eventArgs.Data) {
-            [Console]::WriteLine("[{0}] {1}", $serviceLabel, $eventArgs.Data)
-        }
-    }.GetNewClosure()
-    $stderrScript = {
-        param($sender, $eventArgs)
-        if ($null -ne $eventArgs.Data) {
-            [Console]::WriteLine("[{0}:stderr] {1}", $serviceLabel, $eventArgs.Data)
-        }
-    }.GetNewClosure()
-    $stdoutHandler = [Diagnostics.DataReceivedEventHandler]$stdoutScript
-    $stderrHandler = [Diagnostics.DataReceivedEventHandler]$stderrScript
-    $process.add_OutputDataReceived($stdoutHandler)
-    $process.add_ErrorDataReceived($stderrHandler)
-
     if (-not $process.Start()) {
         throw "Could not start rAthena service: $Name"
     }
-    $process.BeginOutputReadLine()
-    $process.BeginErrorReadLine()
     $script:runtime[$Name] = [pscustomobject]@{
         Process = $process
-        StdoutHandler = $stdoutHandler
-        StderrHandler = $stderrHandler
+        StdoutTask = $process.StandardOutput.ReadLineAsync()
+        StderrTask = $process.StandardError.ReadLineAsync()
         StartedAt = [DateTime]::UtcNow
     }
     [Console]::WriteLine("[supervisor] STARTED service={0} pid={1}", $Name, $process.Id)
+}
+
+function Drain-RathenaOutput {
+    param([Parameter(Mandatory = $true)][string]$Name)
+
+    $state = $script:runtime[$Name]
+    if ($null -eq $state) {
+        return
+    }
+    foreach ($stream in @(
+        [pscustomobject]@{ TaskProperty = "StdoutTask"; Reader = $state.Process.StandardOutput; Prefix = $Name },
+        [pscustomobject]@{ TaskProperty = "StderrTask"; Reader = $state.Process.StandardError; Prefix = "${Name}:stderr" }
+    )) {
+        $task = $state.($stream.TaskProperty)
+        while ($null -ne $task -and $task.IsCompleted) {
+            try {
+                $line = $task.GetAwaiter().GetResult()
+            }
+            catch {
+                [Console]::WriteLine("[{0}] OUTPUT_READ_FAILED {1}", $stream.Prefix, $_.Exception.Message)
+                $line = $null
+            }
+            if ($null -eq $line) {
+                $state.($stream.TaskProperty) = $null
+                break
+            }
+            [Console]::WriteLine("[{0}] {1}", $stream.Prefix, $line)
+            $task = $stream.Reader.ReadLineAsync()
+            $state.($stream.TaskProperty) = $task
+        }
+    }
 }
 
 function Send-RathenaCommand {
@@ -174,6 +194,7 @@ function Stop-RathenaService {
         $state.Process.Kill()
         [void]$state.Process.WaitForExit(5000)
     }
+    Drain-RathenaOutput -Name $Name
 }
 
 function Stop-AllRathenaServices {
@@ -190,12 +211,15 @@ function Stop-AllRathenaServices {
     if ($services.Contains("web")) {
         Stop-RathenaService -Name "web" -TimeoutSeconds 5
     }
-    foreach ($state in @($script:runtime.Values)) {
+    foreach ($entry in @($script:runtime.GetEnumerator())) {
+        $state = $entry.Value
+        Drain-RathenaOutput -Name $entry.Key
         if ($null -ne $state -and -not $state.Process.HasExited) {
             $state.Process.Kill()
             [void]$state.Process.WaitForExit(5000)
         }
         if ($null -ne $state) {
+            Drain-RathenaOutput -Name $entry.Key
             $state.Process.Dispose()
         }
     }
@@ -246,11 +270,11 @@ function Handle-SupervisorCommand {
 try {
     [Console]::WriteLine("[supervisor] ROOT {0}", $ServerRoot)
     Start-RathenaService -Name "login"
-    if (-not (Wait-TcpPort -Port $LoginPort -TimeoutSeconds 45)) {
+    if (-not (Wait-TcpPort -Port $LoginPort -TimeoutSeconds 45 -ServiceName "login")) {
         throw "login-server did not open TCP port $LoginPort"
     }
     Start-RathenaService -Name "char"
-    if (-not (Wait-TcpPort -Port $CharPort -TimeoutSeconds 45)) {
+    if (-not (Wait-TcpPort -Port $CharPort -TimeoutSeconds 45 -ServiceName "char")) {
         throw "char-server did not open TCP port $CharPort"
     }
     if ($webEnabled) {
@@ -262,6 +286,11 @@ try {
     do {
         $allReady = $true
         foreach ($entry in $services.GetEnumerator()) {
+            Drain-RathenaOutput -Name $entry.Key
+            $state = $script:runtime[$entry.Key]
+            if ($null -ne $state -and $state.Process.HasExited) {
+                throw "$($entry.Key) service exited before becoming ready"
+            }
             if (-not (Test-TcpPort -Port $entry.Value.Port)) {
                 $allReady = $false
                 break
@@ -283,6 +312,7 @@ try {
     while ($keepRunning -and -not $script:stopping) {
         foreach ($entry in @($services.GetEnumerator())) {
             $name = $entry.Key
+            Drain-RathenaOutput -Name $name
             $state = $script:runtime[$name]
             if ($null -eq $state -or -not $state.Process.HasExited) {
                 continue
@@ -329,13 +359,13 @@ try {
 }
 catch {
     [Console]::WriteLine("[supervisor] FATAL {0}", $_.Exception.Message)
-    $global:LASTEXITCODE = 1
+    $script:exitCode = 1
 }
 finally {
     Stop-AllRathenaServices
 }
 
-if ($global:LASTEXITCODE -eq 1) {
+if ($script:exitCode -eq 1) {
     exit 1
 }
 exit 0
