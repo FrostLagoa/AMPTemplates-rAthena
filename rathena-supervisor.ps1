@@ -125,7 +125,7 @@ function Start-RathenaService {
         StderrTask = $process.StandardError.ReadLineAsync()
         StartedAt = [DateTime]::UtcNow
     }
-    [Console]::WriteLine("[supervisor] STARTED service={0} pid={1}", $Name, $process.Id)
+    [Console]::WriteLine(("[supervisor] STARTED service={0} pid={1}" -f $Name, $process.Id))
 }
 
 function Drain-RathenaOutput {
@@ -145,14 +145,14 @@ function Drain-RathenaOutput {
                 $line = $task.GetAwaiter().GetResult()
             }
             catch {
-                [Console]::WriteLine("[{0}] OUTPUT_READ_FAILED {1}", $stream.Prefix, $_.Exception.Message)
+                [Console]::WriteLine(("[{0}] OUTPUT_READ_FAILED {1}" -f $stream.Prefix, $_.Exception.Message))
                 $line = $null
             }
             if ($null -eq $line) {
                 $state.($stream.TaskProperty) = $null
                 break
             }
-            [Console]::WriteLine("[{0}] {1}", $stream.Prefix, $line)
+            [Console]::WriteLine(("[{0}] {1}" -f $stream.Prefix, $line))
             $task = $stream.Reader.ReadLineAsync()
             $state.($stream.TaskProperty) = $task
         }
@@ -171,7 +171,7 @@ function Send-RathenaCommand {
         return $true
     }
     catch {
-        [Console]::WriteLine("[supervisor] COMMAND_FAILED service={0} error={1}", $Name, $_.Exception.Message)
+        [Console]::WriteLine(("[supervisor] COMMAND_FAILED service={0} error={1}" -f $Name, $_.Exception.Message))
         return $false
     }
 }
@@ -187,10 +187,10 @@ function Stop-RathenaService {
         [void](Send-RathenaCommand -Name $Name -Command $definition.GracefulCommand)
     }
     elseif ($state.Process.CloseMainWindow()) {
-        [Console]::WriteLine("[supervisor] CLOSE_REQUESTED service={0}", $Name)
+        [Console]::WriteLine(("[supervisor] CLOSE_REQUESTED service={0}" -f $Name))
     }
     if (-not $state.Process.WaitForExit($TimeoutSeconds * 1000)) {
-        [Console]::WriteLine("[supervisor] FORCE_STOP service={0} pid={1}", $Name, $state.Process.Id)
+        [Console]::WriteLine(("[supervisor] FORCE_STOP service={0} pid={1}" -f $Name, $state.Process.Id))
         $state.Process.Kill()
         [void]$state.Process.WaitForExit(5000)
     }
@@ -232,7 +232,7 @@ function Write-RathenaStatus {
         $running = $null -ne $state -and -not $state.Process.HasExited
         $pidText = if ($running) { [string]$state.Process.Id } else { "-" }
         $portReady = Test-TcpPort -Port $entry.Value.Port -TimeoutMilliseconds 200
-        [Console]::WriteLine("[supervisor] STATUS service={0} running={1} pid={2} port={3} ready={4}", $entry.Key, $running.ToString().ToLowerInvariant(), $pidText, $entry.Value.Port, $portReady.ToString().ToLowerInvariant())
+        [Console]::WriteLine(("[supervisor] STATUS service={0} running={1} pid={2} port={3} ready={4}" -f $entry.Key, $running.ToString().ToLowerInvariant(), $pidText, $entry.Value.Port, $portReady.ToString().ToLowerInvariant()))
     }
 }
 
@@ -256,7 +256,7 @@ function Handle-SupervisorCommand {
     if ($trimmed -match '^restart\s+(login|char|map|web)$') {
         $name = $Matches[1]
         if (-not $services.Contains($name)) {
-            [Console]::WriteLine("[supervisor] SERVICE_DISABLED service={0}", $name)
+            [Console]::WriteLine(("[supervisor] SERVICE_DISABLED service={0}" -f $name))
             return $true
         }
         Stop-RathenaService -Name $name -TimeoutSeconds 10
@@ -268,7 +268,7 @@ function Handle-SupervisorCommand {
 }
 
 try {
-    [Console]::WriteLine("[supervisor] ROOT {0}", $ServerRoot)
+    [Console]::WriteLine(("[supervisor] ROOT {0}" -f $ServerRoot))
     Start-RathenaService -Name "login"
     if (-not (Wait-TcpPort -Port $LoginPort -TimeoutSeconds 45 -ServiceName "login")) {
         throw "login-server did not open TCP port $LoginPort"
@@ -304,7 +304,7 @@ try {
         throw "Not all enabled rAthena services became ready within 600 seconds"
     }
     $webStatus = if ($webEnabled) { [string]$WebPort } else { "disabled" }
-    [Console]::WriteLine("[supervisor] READY login={0} char={1} map={2} web={3}", $LoginPort, $CharPort, $MapPort, $webStatus)
+    [Console]::WriteLine(("[supervisor] READY login={0} char={1} map={2} web={3}" -f $LoginPort, $CharPort, $MapPort, $webStatus))
 
     $inputClosed = $false
     $readTask = [Console]::In.ReadLineAsync()
@@ -319,7 +319,7 @@ try {
             }
             $exitCode = $state.Process.ExitCode
             $lifetime = ([DateTime]::UtcNow - $state.StartedAt).TotalSeconds
-            [Console]::WriteLine("[supervisor] EXITED service={0} code={1} lifetime_seconds={2:N1}", $name, $exitCode, $lifetime)
+            [Console]::WriteLine(("[supervisor] EXITED service={0} code={1} lifetime_seconds={2:N1}" -f $name, $exitCode, $lifetime))
             $state.Process.Dispose()
             $script:runtime.Remove($name)
             if (-not $restartEnabled) {
@@ -334,7 +334,7 @@ try {
                 throw "rAthena service exceeded restart limit: $name"
             }
             $delay = [Math]::Min(60, $RestartBackoffSeconds * $attempt)
-            [Console]::WriteLine("[supervisor] RESTARTING service={0} attempt={1}/{2} delay_seconds={3}", $name, $attempt, $RestartLimit, $delay)
+            [Console]::WriteLine(("[supervisor] RESTARTING service={0} attempt={1}/{2} delay_seconds={3}" -f $name, $attempt, $RestartLimit, $delay))
             Start-Sleep -Seconds $delay
             Start-RathenaService -Name $name
         }
@@ -358,9 +358,9 @@ try {
     }
 }
 catch {
-    [Console]::WriteLine("[supervisor] FATAL type={0} message={1}", $_.Exception.GetType().FullName, $_.Exception.Message)
+    [Console]::WriteLine(("[supervisor] FATAL type={0} message={1}" -f $_.Exception.GetType().FullName, $_.Exception.Message))
     if (-not [string]::IsNullOrWhiteSpace($_.ScriptStackTrace)) {
-        [Console]::WriteLine("[supervisor] FATAL_STACK {0}", ($_.ScriptStackTrace -replace "[\r\n]+", " | "))
+        [Console]::WriteLine(("[supervisor] FATAL_STACK {0}" -f ($_.ScriptStackTrace -replace "[\r\n]+", " | ")))
     }
     $script:exitCode = 1
 }
