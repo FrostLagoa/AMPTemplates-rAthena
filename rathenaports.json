@@ -1,0 +1,30 @@
+[
+  {
+    "Protocol": "TCP",
+    "Port": 6900,
+    "Ref": "ApplicationPort1",
+    "Name": "Login service",
+    "Description": "Public Ragnarok login-server port"
+  },
+  {
+    "Protocol": "TCP",
+    "Port": 6121,
+    "Ref": "ApplicationPort2",
+    "Name": "Character service",
+    "Description": "Ragnarok char-server port"
+  },
+  {
+    "Protocol": "TCP",
+    "Port": 5121,
+    "Ref": "ApplicationPort3",
+    "Name": "Map service",
+    "Description": "Ragnarok map-server port"
+  },
+  {
+    "Protocol": "TCP",
+    "Port": 8888,
+    "Ref": "ApplicationPort4",
+    "Name": "Web service",
+    "Description": "Local rAthena web-server port"
+  }
+]

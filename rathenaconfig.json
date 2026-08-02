@@ -1,0 +1,82 @@
+[
+  {
+    "DisplayName": "rAthena server folder",
+    "Category": "rAthena:application",
+    "Subcategory": "Runtime:settings:1",
+    "Description": "Existing rAthena checkout containing login-server.exe, char-server.exe, map-server.exe and web-server.exe.",
+    "Keywords": "rathena,server,folder,path",
+    "FieldName": "ServerRoot",
+    "InputType": "text",
+    "ParamFieldName": "ServerRoot",
+    "DefaultValue": "D:\\Ragnarok",
+    "Placeholder": "D:\\Ragnarok",
+    "Required": true,
+    "EnumValues": {}
+  },
+  {
+    "DisplayName": "Run web service",
+    "Category": "rAthena:application",
+    "Subcategory": "Services:server:2",
+    "Description": "Start and supervise web-server.exe together with the login, character and map services.",
+    "Keywords": "web,service",
+    "FieldName": "EnableWeb",
+    "InputType": "checkbox",
+    "ParamFieldName": "EnableWeb",
+    "DefaultValue": "true",
+    "EnumValues": {"False": "false", "True": "true"}
+  },
+  {
+    "DisplayName": "Restart failed services",
+    "Category": "rAthena:application",
+    "Subcategory": "Recovery:heartbeat:3",
+    "Description": "Restart a rAthena child service when it exits unexpectedly.",
+    "Keywords": "restart,recovery,supervisor",
+    "FieldName": "AutoRestart",
+    "InputType": "checkbox",
+    "ParamFieldName": "AutoRestart",
+    "DefaultValue": "true",
+    "EnumValues": {"False": "false", "True": "true"}
+  },
+  {
+    "DisplayName": "Restart attempt limit",
+    "Category": "rAthena:application",
+    "Subcategory": "Recovery:heartbeat:3",
+    "Description": "Maximum consecutive restart attempts for each service before the AMP application is marked failed.",
+    "Keywords": "restart,attempts,limit",
+    "FieldName": "RestartLimit",
+    "InputType": "number",
+    "ParamFieldName": "RestartLimit",
+    "DefaultValue": "3",
+    "MinValue": "0",
+    "MaxValue": "10",
+    "EnumValues": {}
+  },
+  {
+    "DisplayName": "Restart backoff (seconds)",
+    "Category": "rAthena:application",
+    "Subcategory": "Recovery:heartbeat:3",
+    "Description": "Base delay before restarting a failed service. Repeated failures increase the delay.",
+    "Keywords": "restart,backoff,delay",
+    "FieldName": "RestartBackoffSeconds",
+    "InputType": "number",
+    "ParamFieldName": "RestartBackoffSeconds",
+    "DefaultValue": "3",
+    "MinValue": "1",
+    "MaxValue": "60",
+    "EnumValues": {}
+  },
+  {
+    "DisplayName": "Graceful shutdown timeout (seconds)",
+    "Category": "rAthena:application",
+    "Subcategory": "Shutdown:stop:4",
+    "Description": "Time allowed for login, character and map services to finish after receiving server:shutdown.",
+    "Keywords": "shutdown,timeout,stop",
+    "FieldName": "ShutdownTimeoutSeconds",
+    "InputType": "number",
+    "ParamFieldName": "ShutdownTimeoutSeconds",
+    "DefaultValue": "30",
+    "MinValue": "5",
+    "MaxValue": "120",
+    "EnumValues": {}
+  }
+]

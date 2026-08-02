@@ -1,0 +1,12 @@
+[
+  {
+    "UpdateStageName": "Install rAthena supervisor",
+    "UpdateSourcePlatform": "Windows",
+    "UpdateSource": "FetchURL",
+    "UpdateSourceData": "https://raw.githubusercontent.com/FrostLagoa/AMPTemplates-rAthena/main/rathena-supervisor.ps1",
+    "UpdateSourceArgs": "rathena-supervisor.ps1",
+    "UpdateSourceTarget": "{{$FullRootDir}}",
+    "OverwriteExistingFiles": true,
+    "SkipOnFailure": false
+  }
+]
