@@ -40,7 +40,7 @@ App.UseLinuxIOREDIR=False
 App.AppSettings={"ServerRoot":"D:\\Ragnarok","EnableWeb":"true","AutoRestart":"true","RestartLimit":"3","RestartBackoffSeconds":"3","ShutdownTimeoutSeconds":"30"}
 App.EnvironmentVariables={}
 App.CommandLineParameterFormat=-{0}={1}
-App.CommandLineParameterDelimiter= 
+App.CommandLineParameterDelimiter=
 App.ExitMethod=String
 App.ExitTimeout=45
 App.ExitString=ampstop
