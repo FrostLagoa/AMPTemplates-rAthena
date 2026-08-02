@@ -17,6 +17,14 @@ process to exit.
 The template update stage refreshes only the supervisor. It never overwrites
 the customized rAthena checkout, SQL data or local secrets.
 
+On Genesis Server the entire live chain stays under
+`NT AUTHORITY\NETWORK SERVICE`: the ADS Windows service launches the AMP
+instance, AMP launches the foreground PowerShell supervisor, and the
+supervisor launches all four rAthena executables without alternate
+credentials. The instance is deliberately non-daemonized and does not start
+on host boot. Application output remains in the AMP Console rather than
+opening separate terminal windows.
+
 `ragnarok-banner.jpg` was supplied by the server operator for this instance's
 visual presentation. It is not part of rAthena and no rights to the underlying
 Ragnarok Online artwork or marks are granted by this template package.
