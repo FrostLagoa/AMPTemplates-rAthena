@@ -1,8 +1,12 @@
 # rAthena AMP template
 
 This package is published in the public `FrostLagoa/AMPTemplates-rAthena`
-repository, mirrored under the Iris AMP integration and installed in the local
-AMP deployment-template catalog.
+repository and mirrored under the Iris AMP integration. ADS registers that
+repository directly; Iris never copies files into the official CubeCoders
+catalog.
+
+AMP 2.8 requires the root `manifest.json` to classify this repository as an
+`AppTemplates` source before any `.kvp` file is indexed.
 
 The template deliberately manages an existing Windows rAthena checkout rather
 than downloading or updating game files. On the Genesis Server host the
