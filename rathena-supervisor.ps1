@@ -205,19 +205,39 @@ function Stop-AllRathenaServices {
     [Console]::WriteLine("[supervisor] STOPPING")
     foreach ($name in @("map", "char", "login")) {
         if ($services.Contains($name)) {
-            Stop-RathenaService -Name $name -TimeoutSeconds $ShutdownTimeoutSeconds
+            [void](Send-RathenaCommand -Name $name -Command $services[$name].GracefulCommand)
         }
     }
     if ($services.Contains("web")) {
-        Stop-RathenaService -Name "web" -TimeoutSeconds 5
+        $webState = $script:runtime["web"]
+        if ($null -ne $webState -and -not $webState.Process.HasExited) {
+            [void]$webState.Process.CloseMainWindow()
+        }
+    }
+    $shutdownDeadline = [DateTime]::UtcNow.AddSeconds($ShutdownTimeoutSeconds)
+    do {
+        $remaining = 0
+        foreach ($entry in @($script:runtime.GetEnumerator())) {
+            Drain-RathenaOutput -Name $entry.Key
+            if ($null -ne $entry.Value -and -not $entry.Value.Process.HasExited) {
+                $remaining++
+            }
+        }
+        if ($remaining -gt 0) {
+            Start-Sleep -Milliseconds 200
+        }
+    } while ($remaining -gt 0 -and [DateTime]::UtcNow -lt $shutdownDeadline)
+    foreach ($entry in @($script:runtime.GetEnumerator())) {
+        $state = $entry.Value
+        if ($null -ne $state -and -not $state.Process.HasExited) {
+            [Console]::WriteLine(("[supervisor] FORCE_STOP service={0} pid={1}" -f $entry.Key, $state.Process.Id))
+            $state.Process.Kill()
+            [void]$state.Process.WaitForExit(5000)
+        }
     }
     foreach ($entry in @($script:runtime.GetEnumerator())) {
         $state = $entry.Value
         Drain-RathenaOutput -Name $entry.Key
-        if ($null -ne $state -and -not $state.Process.HasExited) {
-            $state.Process.Kill()
-            [void]$state.Process.WaitForExit(5000)
-        }
         if ($null -ne $state) {
             Drain-RathenaOutput -Name $entry.Key
             $state.Process.Dispose()
