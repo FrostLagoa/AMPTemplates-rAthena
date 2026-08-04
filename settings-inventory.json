@@ -1,0 +1,18 @@
+{
+  "game": "Ragnarok Online",
+  "category": "Ragnarok Online:gamepad",
+  "generated_settings": 790,
+  "total_fields": 796,
+  "config_files": [
+    "conf/import/battle_conf.txt",
+    "conf/import/char_conf.txt",
+    "conf/import/inter_conf.txt",
+    "conf/import/log_conf.txt",
+    "conf/import/login_conf.txt",
+    "conf/import/map_conf.txt",
+    "conf/import/packet_conf.txt",
+    "conf/import/script_conf.txt",
+    "conf/import/web_conf.txt"
+  ],
+  "excluded_contract": "Credentials, passwords, Vault material and integration-managed database connection strings are never exposed."
+}

@@ -32,6 +32,8 @@ $RestartBackoffSeconds = [Math]::Max(1, [Math]::Min(60, $RestartBackoffSeconds))
 $ShutdownTimeoutSeconds = [Math]::Max(5, [Math]::Min(120, $ShutdownTimeoutSeconds))
 $ServerRoot = [IO.Path]::GetFullPath($ServerRoot)
 
+& (Join-Path $PSScriptRoot "amp-config-link.ps1") -ServerRoot $ServerRoot
+
 $services = [ordered]@{
     login = [pscustomobject]@{ Executable = "login-server.exe"; Port = $LoginPort; GracefulCommand = "server:shutdown" }
     char = [pscustomobject]@{ Executable = "char-server.exe"; Port = $CharPort; GracefulCommand = "server:shutdown" }

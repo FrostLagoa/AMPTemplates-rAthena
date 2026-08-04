@@ -8,5 +8,15 @@
     "UpdateSourceTarget": "{{$FullRootDir}}",
     "OverwriteExistingFiles": true,
     "SkipOnFailure": false
+  },
+  {
+    "UpdateStageName": "Install persisted configuration link helper",
+    "UpdateSourcePlatform": "Windows",
+    "UpdateSource": "FetchURL",
+    "UpdateSourceData": "https://raw.githubusercontent.com/FrostLagoa/AMPTemplates-rAthena/main/amp-config-link.ps1",
+    "UpdateSourceArgs": "amp-config-link.ps1",
+    "UpdateSourceTarget": "{{$FullRootDir}}",
+    "OverwriteExistingFiles": true,
+    "SkipOnFailure": false
   }
 ]
