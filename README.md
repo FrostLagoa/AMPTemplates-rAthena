@@ -21,7 +21,7 @@ process to exit.
 The template update stage refreshes only the supervisor. It never overwrites
 the customized rAthena checkout, SQL data or local secrets.
 
-AMP config version 9 exposes the complete supported non-secret scalar
+AMP config version 10 exposes the complete supported non-secret scalar
 configuration in the `Ragnarok Online:gamepad` page. Its 790 persisted fields
 cover login, character, map, web, packet, script, log, inter-server structure
 and every active battle setting. AMP writes them to the corresponding rAthena
@@ -31,6 +31,8 @@ verified directory junction to the real checkout; it is created in both AMP
 path-resolution locations without replacing any existing non-junction path.
 The protected local SQL import remains last and credentials, SQL identities,
 passwords and Vault material are never mapped into AMP.
+The Character server's `Player slots` setting writes `max_connect_user`; `-1`
+keeps rAthena's unlimited mode and positive values impose the selected limit.
 
 On Genesis Server the entire live chain stays under
 `NT AUTHORITY\NETWORK SERVICE`: the ADS Windows service launches the AMP

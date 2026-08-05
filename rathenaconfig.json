@@ -758,16 +758,18 @@
     "EnumValues": {}
   },
   {
-    "DisplayName": "Max Connect User",
+    "DisplayName": "Player slots",
     "Category": "Ragnarok Online:gamepad",
     "Subcategory": "Character server:users:11",
-    "Description": "Persisted in conf/import/char_conf.txt. The server may require a restart before it takes effect.",
-    "Keywords": "max,connect,user",
+    "Description": "Maximum simultaneous player connections. Use -1 for unlimited. Restart the server after changing it.",
+    "Keywords": "ragnarok,players,slots,max,connect,user",
     "FieldName": "CfgRathenaConfImportCharConfTxtMaxConnectUser",
     "InputType": "number",
     "ParamFieldName": "CfgRathenaConfImportCharConfTxtMaxConnectUser",
     "IncludeInCommandLine": false,
     "DefaultValue": "-1",
+    "MinValue": "-1",
+    "MaxValue": "100000",
     "EnumValues": {}
   },
   {
