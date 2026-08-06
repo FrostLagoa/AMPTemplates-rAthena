@@ -127,21 +127,14 @@ foreach ($entry in $services.GetEnumerator()) {
     $script:restartCounts[$entry.Key] = 0
 }
 
-function Test-TcpPort {
-    param([int]$Port, [int]$TimeoutMilliseconds = 500)
-    $client = [Net.Sockets.TcpClient]::new()
+function Test-TcpListener {
+    param([int]$Port)
     try {
-        $task = $client.ConnectAsync("127.0.0.1", $Port)
-        if (-not $task.Wait($TimeoutMilliseconds)) {
-            return $false
-        }
-        return $client.Connected
+        $listeners = [Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners()
+        return $null -ne ($listeners | Where-Object Port -eq $Port | Select-Object -First 1)
     }
     catch {
         return $false
-    }
-    finally {
-        $client.Dispose()
     }
 }
 
@@ -157,7 +150,7 @@ function Wait-TcpPort {
                 return $false
             }
         }
-        if (Test-TcpPort -Port $Port) {
+        if (Test-TcpListener -Port $Port) {
             return $true
         }
         Start-Sleep -Milliseconds 250
@@ -378,7 +371,7 @@ function Write-RathenaStatus {
         $state = $script:runtime[$entry.Key]
         $running = $null -ne $state -and -not $state.Process.HasExited
         $pidText = if ($running) { [string]$state.Process.Id } else { "-" }
-        $portReady = Test-TcpPort -Port $entry.Value.Port -TimeoutMilliseconds 200
+        $portReady = Test-TcpListener -Port $entry.Value.Port
         $serviceReady = $portReady -and ($entry.Key -ne "map" -or $script:mapOnline)
         [Console]::WriteLine(("[supervisor] STATUS service={0} running={1} pid={2} port={3} ready={4}" -f $entry.Key, $running.ToString().ToLowerInvariant(), $pidText, $entry.Value.Port, $serviceReady.ToString().ToLowerInvariant()))
     }
@@ -456,7 +449,7 @@ try {
             if ($null -ne $state -and $state.Process.HasExited) {
                 throw "$($entry.Key) service exited before becoming ready"
             }
-            if (-not (Test-TcpPort -Port $entry.Value.Port)) {
+            if (-not (Test-TcpListener -Port $entry.Value.Port)) {
                 $allReady = $false
             }
         }
