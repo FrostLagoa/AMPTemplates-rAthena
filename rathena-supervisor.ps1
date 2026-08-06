@@ -19,6 +19,61 @@ $script:stopping = $false
 $script:exitCode = 0
 $script:runtime = @{}
 $script:restartCounts = @{}
+$script:mapOnline = $false
+
+if ($null -eq ("Iris.Amp.ConsoleLineReader" -as [type])) {
+    [void](Add-Type -TypeDefinition @"
+using System;
+using System.Collections.Concurrent;
+using System.Threading;
+
+namespace Iris.Amp
+{
+    public sealed class ConsoleLineReader
+    {
+        private readonly ConcurrentQueue<string> lines = new ConcurrentQueue<string>();
+        private readonly Thread readerThread;
+        private volatile bool closed;
+
+        public ConsoleLineReader()
+        {
+            readerThread = new Thread(ReadLoop);
+            readerThread.IsBackground = true;
+            readerThread.Name = "Iris rAthena AMP console input";
+            readerThread.Start();
+        }
+
+        private void ReadLoop()
+        {
+            try
+            {
+                string line;
+                while ((line = Console.In.ReadLine()) != null)
+                {
+                    lines.Enqueue(line);
+                }
+            }
+            finally
+            {
+                closed = true;
+            }
+        }
+
+        public bool TryRead(out string line)
+        {
+            return lines.TryDequeue(out line);
+        }
+
+        public bool IsClosed
+        {
+            get { return closed; }
+        }
+    }
+}
+"@)
+}
+
+$consoleInput = [Iris.Amp.ConsoleLineReader]::new()
 
 function ConvertTo-Switch {
     param([string]$Value)
@@ -106,6 +161,9 @@ function Start-RathenaService {
     if ($null -ne $current -and -not $current.Process.HasExited) {
         return
     }
+    if ($Name -eq "map") {
+        $script:mapOnline = $false
+    }
 
     $startInfo = [Diagnostics.ProcessStartInfo]::new()
     $startInfo.FileName = Join-Path $ServerRoot $definition.Executable
@@ -153,6 +211,9 @@ function Drain-RathenaOutput {
             if ($null -eq $line) {
                 $state.($stream.TaskProperty) = $null
                 break
+            }
+            if ($Name -eq "map" -and $line -match '^\[Status\]: Map Server is now online\.$') {
+                $script:mapOnline = $true
             }
             [Console]::WriteLine(("[{0}] {1}" -f $stream.Prefix, $line))
             $task = $stream.Reader.ReadLineAsync()
@@ -254,7 +315,8 @@ function Write-RathenaStatus {
         $running = $null -ne $state -and -not $state.Process.HasExited
         $pidText = if ($running) { [string]$state.Process.Id } else { "-" }
         $portReady = Test-TcpPort -Port $entry.Value.Port -TimeoutMilliseconds 200
-        [Console]::WriteLine(("[supervisor] STATUS service={0} running={1} pid={2} port={3} ready={4}" -f $entry.Key, $running.ToString().ToLowerInvariant(), $pidText, $entry.Value.Port, $portReady.ToString().ToLowerInvariant()))
+        $serviceReady = $portReady -and ($entry.Key -ne "map" -or $script:mapOnline)
+        [Console]::WriteLine(("[supervisor] STATUS service={0} running={1} pid={2} port={3} ready={4}" -f $entry.Key, $running.ToString().ToLowerInvariant(), $pidText, $entry.Value.Port, $serviceReady.ToString().ToLowerInvariant()))
     }
 }
 
@@ -315,8 +377,10 @@ try {
             }
             if (-not (Test-TcpPort -Port $entry.Value.Port)) {
                 $allReady = $false
-                break
             }
+        }
+        if (-not $script:mapOnline) {
+            $allReady = $false
         }
         if (-not $allReady) {
             Start-Sleep -Milliseconds 500
@@ -329,7 +393,6 @@ try {
     [Console]::WriteLine(("[supervisor] READY login={0} char={1} map={2} web={3}" -f $LoginPort, $CharPort, $MapPort, $webStatus))
 
     $inputClosed = $false
-    $readTask = [Console]::In.ReadLineAsync()
     $keepRunning = $true
     while ($keepRunning -and -not $script:stopping) {
         foreach ($entry in @($services.GetEnumerator())) {
@@ -361,21 +424,15 @@ try {
             Start-RathenaService -Name $name
         }
 
-        if (-not $inputClosed -and $readTask.IsCompleted) {
-            try {
-                $line = $readTask.GetAwaiter().GetResult()
+        $line = $null
+        while (-not $inputClosed -and $consoleInput.TryRead([ref]$line)) {
+            $keepRunning = Handle-SupervisorCommand -Line $line
+            if (-not $keepRunning) {
+                break
             }
-            catch {
-                $line = $null
-            }
-            if ($null -eq $line) {
-                $inputClosed = $true
-            }
-            else {
-                $keepRunning = Handle-SupervisorCommand -Line $line
-                $readTask = [Console]::In.ReadLineAsync()
-            }
+            $line = $null
         }
+        $inputClosed = $consoleInput.IsClosed
         Start-Sleep -Milliseconds 200
     }
 }
