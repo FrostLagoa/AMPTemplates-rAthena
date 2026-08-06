@@ -21,7 +21,7 @@ process to exit.
 The template update stage refreshes only the supervisor. It never overwrites
 the customized rAthena checkout, SQL data or local secrets.
 
-AMP config version 13 exposes the complete supported non-secret scalar
+AMP config version 14 exposes the complete supported non-secret scalar
 configuration in the `Ragnarok Online:gamepad` page. Its 790 persisted fields
 cover login, character, map, web, packet, script, log, inter-server structure
 and every active battle setting. AMP writes them to the corresponding rAthena

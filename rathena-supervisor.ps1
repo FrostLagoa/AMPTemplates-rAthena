@@ -194,9 +194,12 @@ function Start-RathenaService {
 function Write-RathenaOutputLine {
     param(
         [Parameter(Mandatory = $true)][string]$Prefix,
-        [Parameter(Mandatory = $true)][string]$Line
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Line
     )
 
+    if ($Line.Length -eq 0) {
+        return
+    }
     if (-not $script:outputStats.ContainsKey($Prefix)) {
         $script:outputStats[$Prefix] = [pscustomobject]@{
             Seen = 0
