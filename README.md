@@ -29,8 +29,11 @@ and every active battle setting. AMP writes them to the corresponding rAthena
 changes take precedence on the next service start. `runtime-config` is a
 verified directory junction to the real checkout; it is created in both AMP
 path-resolution locations without replacing any existing non-junction path.
-The protected local SQL import remains last and credentials, SQL identities,
-passwords and Vault material are never mapped into AMP.
+The protected local SQL import is anchored in the non-generated
+`conf/inter_athena.conf` file after the AMP-managed inter-server import. This
+keeps it effective and last even when MetaConfig completely rewrites
+`conf/import/inter_conf.txt`; credentials, SQL identities, passwords and Vault
+material are never mapped into AMP.
 The Character server's `Player slots` setting writes `max_connect_user`; `-1`
 keeps rAthena's unlimited mode and positive values impose the selected limit.
 
