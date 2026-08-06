@@ -21,7 +21,7 @@ process to exit.
 The template update stage refreshes only the supervisor. It never overwrites
 the customized rAthena checkout, SQL data or local secrets.
 
-AMP config version 11 exposes the complete supported non-secret scalar
+AMP config version 12 exposes the complete supported non-secret scalar
 configuration in the `Ragnarok Online:gamepad` page. Its 790 persisted fields
 cover login, character, map, web, packet, script, log, inter-server structure
 and every active battle setting. AMP writes them to the corresponding rAthena
@@ -34,6 +34,11 @@ The protected local SQL import is anchored in the non-generated
 keeps it effective and last even when MetaConfig completely rewrites
 `conf/import/inter_conf.txt`; credentials, SQL identities, passwords and Vault
 material are never mapped into AMP.
+For a checkout compiled with `RENEWAL`, the generator resolves rAthena's
+`renewal-*` table aliases into the canonical managed keys. Legacy generated
+non-Renewal defaults are migrated to the matching `*_re` tables while a truly
+custom table name remains untouched. This prevents MetaConfig from replacing a
+valid Renewal item/mob catalog with nonexistent non-Renewal SQL tables.
 The Character server's `Player slots` setting writes `max_connect_user`; `-1`
 keeps rAthena's unlimited mode and positive values impose the selected limit.
 

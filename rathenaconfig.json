@@ -3035,7 +3035,7 @@
     "InputType": "text",
     "ParamFieldName": "CfgRathenaConfImportInterConfTxtItemTable",
     "IncludeInCommandLine": false,
-    "DefaultValue": "item_db",
+    "DefaultValue": "item_db_re",
     "EnumValues": {}
   },
   {
@@ -3048,7 +3048,7 @@
     "InputType": "text",
     "ParamFieldName": "CfgRathenaConfImportInterConfTxtItem2Table",
     "IncludeInCommandLine": false,
-    "DefaultValue": "item_db2",
+    "DefaultValue": "item_db2_re",
     "EnumValues": {}
   },
   {
@@ -3061,7 +3061,7 @@
     "InputType": "text",
     "ParamFieldName": "CfgRathenaConfImportInterConfTxtMobTable",
     "IncludeInCommandLine": false,
-    "DefaultValue": "mob_db",
+    "DefaultValue": "mob_db_re",
     "EnumValues": {}
   },
   {
@@ -3074,7 +3074,7 @@
     "InputType": "text",
     "ParamFieldName": "CfgRathenaConfImportInterConfTxtMob2Table",
     "IncludeInCommandLine": false,
-    "DefaultValue": "mob_db2",
+    "DefaultValue": "mob_db2_re",
     "EnumValues": {}
   },
   {
@@ -3087,7 +3087,7 @@
     "InputType": "text",
     "ParamFieldName": "CfgRathenaConfImportInterConfTxtMobSkillTable",
     "IncludeInCommandLine": false,
-    "DefaultValue": "mob_skill_db",
+    "DefaultValue": "mob_skill_db_re",
     "EnumValues": {}
   },
   {
@@ -3100,7 +3100,7 @@
     "InputType": "text",
     "ParamFieldName": "CfgRathenaConfImportInterConfTxtMobSkill2Table",
     "IncludeInCommandLine": false,
-    "DefaultValue": "mob_skill_db2",
+    "DefaultValue": "mob_skill_db2_re",
     "EnumValues": {}
   },
   {
