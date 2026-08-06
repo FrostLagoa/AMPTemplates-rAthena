@@ -20,6 +20,7 @@ $script:exitCode = 0
 $script:runtime = @{}
 $script:restartCounts = @{}
 $script:mapOnline = $false
+$script:outputStats = @{}
 
 if ($null -eq ("Iris.Amp.ConsoleLineReader" -as [type])) {
     [void](Add-Type -TypeDefinition @"
@@ -163,6 +164,8 @@ function Start-RathenaService {
     }
     if ($Name -eq "map") {
         $script:mapOnline = $false
+        [void]$script:outputStats.Remove("map")
+        [void]$script:outputStats.Remove("map:stderr")
     }
 
     $startInfo = [Diagnostics.ProcessStartInfo]::new()
@@ -188,6 +191,64 @@ function Start-RathenaService {
     [Console]::WriteLine(("[supervisor] STARTED service={0} pid={1}" -f $Name, $process.Id))
 }
 
+function Write-RathenaOutputLine {
+    param(
+        [Parameter(Mandatory = $true)][string]$Prefix,
+        [Parameter(Mandatory = $true)][string]$Line
+    )
+
+    if (-not $script:outputStats.ContainsKey($Prefix)) {
+        $script:outputStats[$Prefix] = [pscustomobject]@{
+            Seen = 0
+            ErrorsSeen = 0
+            Suppressed = 0
+        }
+    }
+    $stats = $script:outputStats[$Prefix]
+    $stats.Seen++
+    $isError = $Line -match '^\[(?:Error|Fatal Error)\]:'
+    if ($isError) {
+        $stats.ErrorsSeen++
+    }
+    $isLifecycle = $Line -match 'Map Server is now online|Server is ready|Connected to (?:Login|Char) Server'
+    $emit = $script:mapOnline -or $isLifecycle -or $stats.Seen -le 64
+    if ($isError -and ($stats.ErrorsSeen -le 32 -or ($stats.ErrorsSeen % 1000) -eq 0)) {
+        $emit = $true
+    }
+    if (($stats.Seen % 5000) -eq 0) {
+        $emit = $true
+    }
+    if (-not $emit) {
+        $stats.Suppressed++
+        return
+    }
+    if ($stats.Suppressed -gt 0) {
+        [Console]::WriteLine((
+            "[supervisor] OUTPUT_SUPPRESSED stream={0} lines={1} total_seen={2}" -f
+            $Prefix, $stats.Suppressed, $stats.Seen
+        ))
+        $stats.Suppressed = 0
+    }
+    [Console]::WriteLine(("[{0}] {1}" -f $Prefix, $Line))
+}
+
+function Flush-RathenaOutputSummary {
+    param([Parameter(Mandatory = $true)][string]$Prefix)
+
+    if (-not $script:outputStats.ContainsKey($Prefix)) {
+        return
+    }
+    $stats = $script:outputStats[$Prefix]
+    if ($stats.Suppressed -le 0) {
+        return
+    }
+    [Console]::WriteLine((
+        "[supervisor] OUTPUT_SUPPRESSED stream={0} lines={1} total_seen={2}" -f
+        $Prefix, $stats.Suppressed, $stats.Seen
+    ))
+    $stats.Suppressed = 0
+}
+
 function Drain-RathenaOutput {
     param([Parameter(Mandatory = $true)][string]$Name)
 
@@ -210,12 +271,13 @@ function Drain-RathenaOutput {
             }
             if ($null -eq $line) {
                 $state.($stream.TaskProperty) = $null
+                Flush-RathenaOutputSummary -Prefix $stream.Prefix
                 break
             }
             if ($Name -eq "map" -and $line -match '^\[Status\]: Map Server is now online\.$') {
                 $script:mapOnline = $true
             }
-            [Console]::WriteLine(("[{0}] {1}" -f $stream.Prefix, $line))
+            Write-RathenaOutputLine -Prefix $stream.Prefix -Line $line
             $task = $stream.Reader.ReadLineAsync()
             $state.($stream.TaskProperty) = $task
         }
