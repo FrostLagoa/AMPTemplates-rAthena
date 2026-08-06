@@ -36,13 +36,21 @@ namespace Iris.Amp
         private readonly ConcurrentQueue<string> lines = new ConcurrentQueue<string>();
         private readonly Thread readerThread;
         private volatile bool closed;
+        private volatile bool cancellationRequested;
 
         public ConsoleLineReader()
         {
+            Console.CancelKeyPress += OnCancelKeyPress;
             readerThread = new Thread(ReadLoop);
             readerThread.IsBackground = true;
             readerThread.Name = "Iris rAthena AMP console input";
             readerThread.Start();
+        }
+
+        private void OnCancelKeyPress(object sender, ConsoleCancelEventArgs args)
+        {
+            args.Cancel = true;
+            cancellationRequested = true;
         }
 
         private void ReadLoop()
@@ -69,6 +77,11 @@ namespace Iris.Amp
         public bool IsClosed
         {
             get { return closed; }
+        }
+
+        public bool IsCancellationRequested
+        {
+            get { return cancellationRequested; }
         }
     }
 }
@@ -422,6 +435,10 @@ function Handle-SupervisorCommand {
 }
 
 function Read-SupervisorInput {
+    if ($consoleInput.IsCancellationRequested) {
+        $script:keepRunning = $false
+        return
+    }
     $line = $null
     while (-not $script:inputClosed -and $consoleInput.TryRead([ref]$line)) {
         $script:keepRunning = Handle-SupervisorCommand -Line $line
@@ -431,6 +448,9 @@ function Read-SupervisorInput {
         $line = $null
     }
     $script:inputClosed = $consoleInput.IsClosed
+    if ($consoleInput.IsCancellationRequested) {
+        $script:keepRunning = $false
+    }
 }
 
 try {
