@@ -92,6 +92,7 @@ $runtimeLogName = "amp-runtime-{0}-{1}.log" -f [DateTime]::UtcNow.ToString("yyyy
 $script:runtimeLogPath = Join-Path $runtimeLogDirectory $runtimeLogName
 $script:runtimeLogMaxBytes = 20MB
 $script:runtimeLogPending = 0
+$script:runtimeLogLastFlushAt = [DateTime]::MinValue
 $script:runtimeLogLimitReported = $false
 $script:runtimeLogWriter = [IO.StreamWriter]::new(
     $script:runtimeLogPath,
@@ -229,9 +230,13 @@ function Write-RathenaRuntimeLogLine {
     }
     $script:runtimeLogWriter.WriteLine($payload)
     $script:runtimeLogPending++
-    if ($script:runtimeLogPending -ge 100) {
+    if (
+        $script:runtimeLogPending -ge 50 -or
+        ([DateTime]::UtcNow - $script:runtimeLogLastFlushAt).TotalSeconds -ge 1
+    ) {
         $script:runtimeLogWriter.Flush()
         $script:runtimeLogPending = 0
+        $script:runtimeLogLastFlushAt = [DateTime]::UtcNow
     }
 }
 
