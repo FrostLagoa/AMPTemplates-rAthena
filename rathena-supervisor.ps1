@@ -20,6 +20,8 @@ $script:exitCode = 0
 $script:runtime = @{}
 $script:restartCounts = @{}
 $script:mapOnline = $false
+$script:inputClosed = $false
+$script:keepRunning = $true
 
 if ($null -eq ("Iris.Amp.ConsoleLineReader" -as [type])) {
     [void](Add-Type -TypeDefinition @"
@@ -413,6 +415,18 @@ function Handle-SupervisorCommand {
     return $true
 }
 
+function Read-SupervisorInput {
+    $line = $null
+    while (-not $script:inputClosed -and $consoleInput.TryRead([ref]$line)) {
+        $script:keepRunning = Handle-SupervisorCommand -Line $line
+        if (-not $script:keepRunning) {
+            break
+        }
+        $line = $null
+    }
+    $script:inputClosed = $consoleInput.IsClosed
+}
+
 try {
     [Console]::WriteLine(("[supervisor] ROOT {0}" -f $ServerRoot))
     [Console]::WriteLine(("[supervisor] LOCAL_LOG path={0} max_bytes={1}" -f $script:runtimeLogPath, $script:runtimeLogMaxBytes))
@@ -431,6 +445,10 @@ try {
 
     $readyDeadline = [DateTime]::UtcNow.AddSeconds(600)
     do {
+        Read-SupervisorInput
+        if (-not $script:keepRunning) {
+            break
+        }
         $allReady = $true
         foreach ($entry in $services.GetEnumerator()) {
             Drain-RathenaOutput -Name $entry.Key
@@ -448,55 +466,47 @@ try {
         if (-not $allReady) {
             Start-Sleep -Milliseconds 500
         }
-    } while (-not $allReady -and [DateTime]::UtcNow -lt $readyDeadline)
-    if (-not $allReady) {
-        throw "Not all enabled rAthena services became ready within 600 seconds"
-    }
-    $webStatus = if ($webEnabled) { [string]$WebPort } else { "disabled" }
-    [Console]::WriteLine(("[supervisor] READY login={0} char={1} map={2} web={3}" -f $LoginPort, $CharPort, $MapPort, $webStatus))
-
-    $inputClosed = $false
-    $keepRunning = $true
-    while ($keepRunning -and -not $script:stopping) {
-        foreach ($entry in @($services.GetEnumerator())) {
-            $name = $entry.Key
-            Drain-RathenaOutput -Name $name
-            $state = $script:runtime[$name]
-            if ($null -eq $state -or -not $state.Process.HasExited) {
-                continue
-            }
-            $exitCode = $state.Process.ExitCode
-            $lifetime = ([DateTime]::UtcNow - $state.StartedAt).TotalSeconds
-            [Console]::WriteLine(("[supervisor] EXITED service={0} code={1} lifetime_seconds={2:N1}" -f $name, $exitCode, $lifetime))
-            $state.Process.Dispose()
-            $script:runtime.Remove($name)
-            if (-not $restartEnabled) {
-                throw "rAthena service exited and automatic restart is disabled: $name"
-            }
-            if ($lifetime -ge 300) {
-                $script:restartCounts[$name] = 0
-            }
-            $attempt = [int]$script:restartCounts[$name] + 1
-            $script:restartCounts[$name] = $attempt
-            if ($attempt -gt $RestartLimit) {
-                throw "rAthena service exceeded restart limit: $name"
-            }
-            $delay = [Math]::Min(60, $RestartBackoffSeconds * $attempt)
-            [Console]::WriteLine(("[supervisor] RESTARTING service={0} attempt={1}/{2} delay_seconds={3}" -f $name, $attempt, $RestartLimit, $delay))
-            Start-Sleep -Seconds $delay
-            Start-RathenaService -Name $name
+    } while ($script:keepRunning -and -not $allReady -and [DateTime]::UtcNow -lt $readyDeadline)
+    if ($script:keepRunning) {
+        if (-not $allReady) {
+            throw "Not all enabled rAthena services became ready within 600 seconds"
         }
+        $webStatus = if ($webEnabled) { [string]$WebPort } else { "disabled" }
+        [Console]::WriteLine(("[supervisor] READY login={0} char={1} map={2} web={3}" -f $LoginPort, $CharPort, $MapPort, $webStatus))
 
-        $line = $null
-        while (-not $inputClosed -and $consoleInput.TryRead([ref]$line)) {
-            $keepRunning = Handle-SupervisorCommand -Line $line
-            if (-not $keepRunning) {
-                break
+        while ($script:keepRunning -and -not $script:stopping) {
+            foreach ($entry in @($services.GetEnumerator())) {
+                $name = $entry.Key
+                Drain-RathenaOutput -Name $name
+                $state = $script:runtime[$name]
+                if ($null -eq $state -or -not $state.Process.HasExited) {
+                    continue
+                }
+                $exitCode = $state.Process.ExitCode
+                $lifetime = ([DateTime]::UtcNow - $state.StartedAt).TotalSeconds
+                [Console]::WriteLine(("[supervisor] EXITED service={0} code={1} lifetime_seconds={2:N1}" -f $name, $exitCode, $lifetime))
+                $state.Process.Dispose()
+                $script:runtime.Remove($name)
+                if (-not $restartEnabled) {
+                    throw "rAthena service exited and automatic restart is disabled: $name"
+                }
+                if ($lifetime -ge 300) {
+                    $script:restartCounts[$name] = 0
+                }
+                $attempt = [int]$script:restartCounts[$name] + 1
+                $script:restartCounts[$name] = $attempt
+                if ($attempt -gt $RestartLimit) {
+                    throw "rAthena service exceeded restart limit: $name"
+                }
+                $delay = [Math]::Min(60, $RestartBackoffSeconds * $attempt)
+                [Console]::WriteLine(("[supervisor] RESTARTING service={0} attempt={1}/{2} delay_seconds={3}" -f $name, $attempt, $RestartLimit, $delay))
+                Start-Sleep -Seconds $delay
+                Start-RathenaService -Name $name
             }
-            $line = $null
+
+            Read-SupervisorInput
+            Start-Sleep -Milliseconds 200
         }
-        $inputClosed = $consoleInput.IsClosed
-        Start-Sleep -Milliseconds 200
     }
 }
 catch {
