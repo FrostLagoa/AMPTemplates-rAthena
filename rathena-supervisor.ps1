@@ -244,6 +244,18 @@ function Close-RathenaRuntimeLog {
     $script:runtimeLogWriter = $null
 }
 
+function Flush-RathenaRuntimeLog {
+    if ($null -eq $script:runtimeLogWriter -or $script:runtimeLogPending -eq 0) {
+        return
+    }
+    if (([DateTime]::UtcNow - $script:runtimeLogLastFlushAt).TotalSeconds -lt 1) {
+        return
+    }
+    $script:runtimeLogWriter.Flush()
+    $script:runtimeLogPending = 0
+    $script:runtimeLogLastFlushAt = [DateTime]::UtcNow
+}
+
 function Drain-RathenaOutput {
     param([Parameter(Mandatory = $true)][string]$Name)
 
@@ -277,6 +289,7 @@ function Drain-RathenaOutput {
             $state.($stream.TaskProperty) = $task
         }
     }
+    Flush-RathenaRuntimeLog
 }
 
 function Send-RathenaCommand {
