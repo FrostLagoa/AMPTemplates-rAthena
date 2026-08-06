@@ -20,7 +20,6 @@ $script:exitCode = 0
 $script:runtime = @{}
 $script:restartCounts = @{}
 $script:mapOnline = $false
-$script:outputStats = @{}
 
 if ($null -eq ("Iris.Amp.ConsoleLineReader" -as [type])) {
     [void](Add-Type -TypeDefinition @"
@@ -87,6 +86,18 @@ $RestartLimit = [Math]::Max(0, [Math]::Min(10, $RestartLimit))
 $RestartBackoffSeconds = [Math]::Max(1, [Math]::Min(60, $RestartBackoffSeconds))
 $ShutdownTimeoutSeconds = [Math]::Max(5, [Math]::Min(120, $ShutdownTimeoutSeconds))
 $ServerRoot = [IO.Path]::GetFullPath($ServerRoot)
+$runtimeLogDirectory = Join-Path $ServerRoot "log"
+[void][IO.Directory]::CreateDirectory($runtimeLogDirectory)
+$runtimeLogName = "amp-runtime-{0}-{1}.log" -f [DateTime]::UtcNow.ToString("yyyyMMdd-HHmmss"), $PID
+$script:runtimeLogPath = Join-Path $runtimeLogDirectory $runtimeLogName
+$script:runtimeLogMaxBytes = 20MB
+$script:runtimeLogPending = 0
+$script:runtimeLogLimitReported = $false
+$script:runtimeLogWriter = [IO.StreamWriter]::new(
+    $script:runtimeLogPath,
+    $false,
+    [Text.UTF8Encoding]::new($false)
+)
 
 & (Join-Path $PSScriptRoot "amp-config-link.ps1") -ServerRoot $ServerRoot
 
@@ -164,8 +175,6 @@ function Start-RathenaService {
     }
     if ($Name -eq "map") {
         $script:mapOnline = $false
-        [void]$script:outputStats.Remove("map")
-        [void]$script:outputStats.Remove("map:stderr")
     }
 
     $startInfo = [Diagnostics.ProcessStartInfo]::new()
@@ -191,7 +200,7 @@ function Start-RathenaService {
     [Console]::WriteLine(("[supervisor] STARTED service={0} pid={1}" -f $Name, $process.Id))
 }
 
-function Write-RathenaOutputLine {
+function Write-RathenaRuntimeLogLine {
     param(
         [Parameter(Mandatory = $true)][string]$Prefix,
         [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Line
@@ -200,56 +209,39 @@ function Write-RathenaOutputLine {
     if ($Line.Length -eq 0) {
         return
     }
-    if (-not $script:outputStats.ContainsKey($Prefix)) {
-        $script:outputStats[$Prefix] = [pscustomobject]@{
-            Seen = 0
-            ErrorsSeen = 0
-            Suppressed = 0
-        }
-    }
-    $stats = $script:outputStats[$Prefix]
-    $stats.Seen++
-    $isError = $Line -match '^\[(?:Error|Fatal Error)\]:'
-    if ($isError) {
-        $stats.ErrorsSeen++
-    }
-    $isLifecycle = $Line -match 'Map Server is now online|Server is ready|Connected to (?:Login|Char) Server'
-    $emit = $script:mapOnline -or $isLifecycle -or $stats.Seen -le 64
-    if ($isError -and ($stats.ErrorsSeen -le 32 -or ($stats.ErrorsSeen % 1000) -eq 0)) {
-        $emit = $true
-    }
-    if (($stats.Seen % 5000) -eq 0) {
-        $emit = $true
-    }
-    if (-not $emit) {
-        $stats.Suppressed++
+    if ($null -eq $script:runtimeLogWriter) {
         return
     }
-    if ($stats.Suppressed -gt 0) {
-        [Console]::WriteLine((
-            "[supervisor] OUTPUT_SUPPRESSED stream={0} lines={1} total_seen={2}" -f
-            $Prefix, $stats.Suppressed, $stats.Seen
-        ))
-        $stats.Suppressed = 0
+    $payload = "{0:o} [{1}] {2}" -f [DateTime]::UtcNow, $Prefix, $Line
+    $requiredBytes = [Text.Encoding]::UTF8.GetByteCount($payload + [Environment]::NewLine)
+    if (($script:runtimeLogWriter.BaseStream.Position + $requiredBytes) -gt $script:runtimeLogMaxBytes) {
+        $script:runtimeLogWriter.Flush()
+        $script:runtimeLogWriter.Dispose()
+        $script:runtimeLogWriter = $null
+        if (-not $script:runtimeLogLimitReported) {
+            [Console]::WriteLine((
+                "[supervisor] LOCAL_LOG_LIMIT path={0} max_bytes={1}" -f
+                $script:runtimeLogPath, $script:runtimeLogMaxBytes
+            ))
+            $script:runtimeLogLimitReported = $true
+        }
+        return
     }
-    [Console]::WriteLine(("[{0}] {1}" -f $Prefix, $Line))
+    $script:runtimeLogWriter.WriteLine($payload)
+    $script:runtimeLogPending++
+    if ($script:runtimeLogPending -ge 100) {
+        $script:runtimeLogWriter.Flush()
+        $script:runtimeLogPending = 0
+    }
 }
 
-function Flush-RathenaOutputSummary {
-    param([Parameter(Mandatory = $true)][string]$Prefix)
-
-    if (-not $script:outputStats.ContainsKey($Prefix)) {
+function Close-RathenaRuntimeLog {
+    if ($null -eq $script:runtimeLogWriter) {
         return
     }
-    $stats = $script:outputStats[$Prefix]
-    if ($stats.Suppressed -le 0) {
-        return
-    }
-    [Console]::WriteLine((
-        "[supervisor] OUTPUT_SUPPRESSED stream={0} lines={1} total_seen={2}" -f
-        $Prefix, $stats.Suppressed, $stats.Seen
-    ))
-    $stats.Suppressed = 0
+    $script:runtimeLogWriter.Flush()
+    $script:runtimeLogWriter.Dispose()
+    $script:runtimeLogWriter = $null
 }
 
 function Drain-RathenaOutput {
@@ -274,13 +266,13 @@ function Drain-RathenaOutput {
             }
             if ($null -eq $line) {
                 $state.($stream.TaskProperty) = $null
-                Flush-RathenaOutputSummary -Prefix $stream.Prefix
                 break
             }
             if ($Name -eq "map" -and $line -match '^\[Status\]: Map Server is now online\.$') {
                 $script:mapOnline = $true
+                [Console]::WriteLine("[supervisor] MAP_ONLINE")
             }
-            Write-RathenaOutputLine -Prefix $stream.Prefix -Line $line
+            Write-RathenaRuntimeLogLine -Prefix $stream.Prefix -Line $line
             $task = $stream.Reader.ReadLineAsync()
             $state.($stream.TaskProperty) = $task
         }
@@ -418,6 +410,7 @@ function Handle-SupervisorCommand {
 
 try {
     [Console]::WriteLine(("[supervisor] ROOT {0}" -f $ServerRoot))
+    [Console]::WriteLine(("[supervisor] LOCAL_LOG path={0} max_bytes={1}" -f $script:runtimeLogPath, $script:runtimeLogMaxBytes))
     Start-RathenaService -Name "login"
     if (-not (Wait-TcpPort -Port $LoginPort -TimeoutSeconds 45 -ServiceName "login")) {
         throw "login-server did not open TCP port $LoginPort"
@@ -510,6 +503,7 @@ catch {
 }
 finally {
     Stop-AllRathenaServices
+    Close-RathenaRuntimeLog
 }
 
 if ($script:exitCode -eq 1) {

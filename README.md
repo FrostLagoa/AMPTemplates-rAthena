@@ -21,7 +21,7 @@ process to exit.
 The template update stage refreshes only the supervisor. It never overwrites
 the customized rAthena checkout, SQL data or local secrets.
 
-AMP config version 14 exposes the complete supported non-secret scalar
+AMP config version 16 exposes the complete supported non-secret scalar
 configuration in the `Ragnarok Online:gamepad` page. Its 790 persisted fields
 cover login, character, map, web, packet, script, log, inter-server structure
 and every active battle setting. AMP writes them to the corresponding rAthena
@@ -39,18 +39,20 @@ For a checkout compiled with `RENEWAL`, the generator resolves rAthena's
 non-Renewal defaults are migrated to the matching `*_re` tables while a truly
 custom table name remains untouched. This prevents MetaConfig from replacing a
 valid Renewal item/mob catalog with nonexistent non-Renewal SQL tables.
+The active runtime intentionally keeps `use_sql_db: no`: this checkout's
+customized Renewal YAML catalog contains newer items absent from its generated
+static SQL exports. Persistent accounts, characters and logs still use MySQL;
+only static item/mob definitions stay in the checkout-native YAML source.
 The Character server's `Player slots` setting writes `max_connect_user`; `-1`
 keeps rAthena's unlimited mode and positive values impose the selected limit.
 
-The supervisor drains every child output stream continuously through a
-dedicated non-blocking console-input reader. Readiness additionally requires
-the map server's confirmed `Map Server is now online.` registration event, not
-only an early TCP 5121 listener, so AMP cannot expose character selection while
-the map database is still loading. During startup it forwards a bounded sample
-of routine output and repeated errors, plus periodic suppression summaries and
-every lifecycle event. This prevents the AMP Console sink itself from applying
-backpressure to the map process; normal post-readiness console output remains
-unfiltered.
+The supervisor drains every child output stream continuously while keeping the
+rAthena child output outside the AMP Console. It writes a per-run UTF-8 log in
+`D:\Ragnarok\log\amp-runtime-*.log`, capped at 20 MiB without deleting older
+logs. AMP receives only bounded supervisor lifecycle/status messages. Readiness
+additionally requires the map server's confirmed `Map Server is now online.`
+registration event, not only an early TCP 5121 listener, so AMP cannot expose
+character selection while the map database is still loading.
 
 On Genesis Server the entire live chain stays under
 `NT AUTHORITY\NETWORK SERVICE`: the ADS Windows service launches the AMP

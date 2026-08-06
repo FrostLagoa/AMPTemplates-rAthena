@@ -3269,7 +3269,7 @@
     "InputType": "checkbox",
     "ParamFieldName": "CfgRathenaConfImportInterConfTxtUseSqlDb",
     "IncludeInCommandLine": false,
-    "DefaultValue": "yes",
+    "DefaultValue": "no",
     "EnumValues": {
       "Disabled": "no",
       "Enabled": "yes"
